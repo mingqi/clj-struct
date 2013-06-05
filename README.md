@@ -6,6 +6,8 @@ This is almost Python's struct module in Clojure. You can easily converse betwee
 
 # How to use it 
 
+[clj-struct "0.1.0"]
+
 ```clojure
 (ns your-package
   (:require [clj-struct.core :as clj-struct]))
@@ -65,3 +67,9 @@ After Order type is one or many Data Type. Available  Data type are:
 ## Count of Data type
 
 You can have a count before data type, for example "3i2H" is equal "iiiHH"
+
+# License
+
+Copyright © 2013 Mingqi Shao
+
+Distributed under the Eclipse Public License, the same as Clojure.
