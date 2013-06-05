@@ -37,25 +37,6 @@
    }
   )
 
-;; (defn long-to-byte-array [i]
-;;   (-> 8 ByteBuffer/allocate (.putLong i) .array)
-;;   )
-
-;; (defn byte-array-to-long[ byte-array]
-;;   (let [buff (ByteBuffer/allocate 8)]
-;;     (dotimes [n (- 8 (count byte-array))]
-;;       (if (> (first byte-array) 0)
-;;         (.put buff (byte 0))
-;;         (.put buff (byte -1))
-;;         )
-;;       )
-;;     (doseq [n (range 0 (count byte-array))]
-;;       (.put buff (nth byte-array n))
-;;      )
-;;     (.flip buff)
-;;     (.getLong buff)
-;;     ))
-
 
 (defn number-of-signed-bytes [ & bytes]
   (BigInteger. (byte-array (flatten bytes)))
@@ -140,35 +121,6 @@
   [(byte (char value))]
   )
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;;b: signed char, integer in clojure
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; (defmethod decode \b
-;;   [c-type, bytes]
-;;   {:pre [(= (count bytes) 1)]}
-;;   (int (first bytes))
-;;   )
-
-;; (defmethod encode \b
-;;   [c-type, value]
-;;   {:pre [(>= (int value) -128) (<= (int value) 127)]}
-;;   [(last (long-to-byte-array value))]
-;;   )
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;B: unsigned char, integer in clojure
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; (defmethod decode \B
-;;   [c-type, bytes]
-;;   {:pre [(= (count bytes) 1)]}
-;;   (int (number-of-unsigned-bytes (first bytes)))
-;;   )
-
-;; (defmethod encode \B
-;;   [c-type value]
-;;   {:pre [(>= value 0) (<= value 255)]}
-;;   [(last (long-to-byte-array value))]
-;;   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; ?: boolean, size is 1, Boolean in Clojure
@@ -188,70 +140,38 @@
     [(byte 0)]
     ))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; h: short, size is 2
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; (defmethod decode \h
-;;   [c-type, bytes]
-;;   {:pre [(= 2 (count bytes))]}
-;;   (int (number-of-signed-bytes bytes))
-;;   )
-
-;; (defmethod encode \h
-;;   [c-type value]
-;;   {:pre [(>= value -32768) (<= value 32767)]}
-;;   (signed-bytes-of-number value 2)
-;;   )
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; H: unsign short, size is 2
+;;; f: float, size is 4
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; (defmethod decode \H
-;;   [c-type, bytes]
-;;   {:pre [(= 2 (count bytes))]}
-;;   (int (number-of-unsigned-bytes bytes)))
-
-;; (defmethod encode \H
-;;   [c-type value]
-;;   {:pre [(>= value 0) (<= value 65535)]}
-;;   (unsigned-bytes-of-number value 2)
-;;   )
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; i: short, size is 4
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; (defmethod decode \i
-;;   [c-type, bytes]
-;;   {:pre [(= 4 (count bytes))]}
-;;   (int (number-of-signed-bytes bytes))
-;;   )
-
-;; (defmethod encode \i
-;;   [c-type value]
-;;   {:pre [(>= value -2147483648) (<= value 2147483647)]}
-;;   (signed-bytes-of-number value 4)
-;;   )
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; I: unsign int, size is 4
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; (defmethod decode \I
-;;   [c-type, bytes]
-;;   {:pre [(= 4 (count bytes))]}
-;;   (long (number-of-unsigned-bytes bytes)))
-
-;; (defmethod encode \I
-;;   [c-type value]
-;;   {:pre [(>= value 0) (<= value 4294967296)]}
-;;   (unsigned-bytes-of-number value 4)
-;;   )
-
-
-
-(defn- size-of [c-type]
+(defmethod decode \f
+  [c-type, bytes]
+  (let [buffer (ByteBuffer/allocate 4)]
+    (.put buffer (byte-array 4 bytes))
+    (.flip buffer )
+    (.getFloat buffer )
+    ))
+(defmethod encode \f
+  [c-type, value]
+  (-> 4 ByteBuffer/allocate (.putFloat (float value)) .array)
   )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; d: double , size is 8
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+(defmethod decode \d
+  [c-type, bytes]
+  (let [buffer (ByteBuffer/allocate 8)]
+    (.put buffer (byte-array 8 bytes))
+    (.flip buffer )
+    (.getDouble buffer )
+    ))
+(defmethod encode \d
+  [c-type, value]
+  (-> 8 ByteBuffer/allocate (.putDouble (double value)) .array)
+  )
+
+
 
 (defn- is-digital [char]
   (and char (> (int char) 48 ) (< (int char) 57))
@@ -261,41 +181,57 @@
   (some #{c} FORMAT-CHARS)
  )
 
-(defn parse-format [fmt]
-  (cond
-   (= 0 (count fmt)) []
-   (-> fmt first is-format) (concat [(first fmt)] (-> fmt rest parse-format) )
-   (and (-> fmt first is-digital) (-> fmt second is-format) ) (concat
-                                                               (-> fmt first int (- 48) (repeat (second fmt)))
-                                                               (->> fmt (drop 2) parse-format ))
-   :else (throw (IllegalArgumentException. (str "there are illegal format: " fmt)))
-   ))
+(defn parse-order-type [fmt]
+  (if-let [order-c (some #{(first fmt)}  [\> \< \!])]
+    (condp = order-c
+      \> :big-endian
+      \< :little-endian
+      \! :big-endian)
+    :big-endian))
 
-(defn- seq-with-bytes [fmt, data]
-  ;; (if-let [c-type (first (parse-format fmt)), n (length-of c-type)]
-  ;;   (cons (apply vector (take n data))
-  ;;         (lazy-seq  (drop n data)))
-  ;;   nil
-  ;;   )
+(defn parse-ctype-seq [fmt]
+  (let [fmt (if (some #{(first fmt)} [\< \> \!])  (rest fmt) fmt)]
+    (cond
+     (= 0 (count fmt)) []
+     (-> fmt first is-format) (concat [(first fmt)] (-> fmt rest parse-ctype-seq) )
+     (and (-> fmt first is-digital) (-> fmt second is-format) )
+     (concat (-> fmt first int (- 48) (repeat (second fmt)))
+             (parse-ctype-seq (drop 2 fmt)))
+     :else (throw (IllegalArgumentException. (str "there are illegal format: " fmt)))
+     )))
+
+(defn- group-byte-with-format [c-types, bytes]
+  (if-let [c-type (first c-types)]
+    (let [size (size-of c-type)]
+      (cons (take size bytes) (group-byte-with-format (rest c-types) (drop size bytes)))
+      )))
+
+(defn calcsize [fmt]
+  (reduce #(+ %1 %2) 0 (map #(size-of %) (parse-ctype-seq fmt) ) )
   )
 
 (defn pack [fmt & values]
-  (let [ c-types (parse-format fmt) ]
+  (let [ c-types (parse-ctype-seq fmt), order-type (parse-order-type fmt) ]
     (if-not (= (count c-types) (count values))
-      "exception: fmt and values it not match"
-      (map decode c-types values)
+      (throw (IllegalArgumentException. "byte size is not correct"))
+      (vec (flatten (map #(if (= :little-endian (parse-order-type fmt))
+                            (reverse (encode %1 %2))
+                            (encode %1 %2)
+                            )
+                     c-types values)))
       )))
 
-(defn unpack[fmt, data]
-  (let [c-types (parse-format fmt), bytes-seq (seq-with-bytes data)]
-    (if-not (= (count c-types) (count bytes-seq))
-      "exception: "
-      (map encode c-types bytes-seq)
-    )))
+(defn unpack[fmt, bytes]
+  (if-not (= (calcsize fmt) (count bytes))
+    (throw (IllegalArgumentException. "byte's length is not match format")))
 
-(defn calcsize [fmt]
-  (reduce #(+ %1 %2) 0 (map #(size-of %) (parse-format fmt) ) )
-  )
+  (let [c-types (parse-ctype-seq fmt), byte-groups (group-byte-with-format c-types bytes), order-type (parse-order-type fmt)]
+    (map #(if (= :little-endian order-type)
+            (decode %1 (reverse %2))
+            (decode %1 %2))
+         c-types byte-groups)
+    ))
+
 
 (defn -main [ & args]
   (println "this is main")
