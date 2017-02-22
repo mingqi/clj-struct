@@ -1,8 +1,8 @@
 # clj-struct
 
-This is almost Python's struct module in Clojure. You can easily converse between Clojure value and bytes stream which come from file, network ...etc.
-
-fix it
+This is almost Python's struct module in Clojure. You can easily
+converse between Clojure value and bytes stream which come from file,
+network ...etc.
 
 # How to use it 
 
@@ -44,25 +44,34 @@ The first character of format can be use to specify the byte order, little-endia
 means Float type with little-endian order. The Byte Order is optional, default is big-endian.
 
 There are three options:
-* < : little-endian
-* > : big-endian
-* ! : network (= big-endian). This is available for those poor souls who claim they can’t remember whether network byte order is big-endian or little-endian.
+
+| Character | Endian                 |
+|:---------:| ---------------------- |
+| <         | little-endian          |
+| >         | big-endian             |
+| !         | network (= big-endian) |
+
+Network-endian is available for those poor souls who claim they can’t
+remember whether network byte order is big-endian or little-endian.
 
 ## Data type
 
-After Order type is one or many Data Type. Available  Data type are:
-* c : character, byte size is 1, corresponding Clojure type is Character
-* b : signed char, byte size is 1, corresponding Clojure type is Integer
-* B : unsigned character, size is 1, corresponding Clojure type is Integer
-* ? : boolean. size is 1, corresponding Clojure type is Boolean
-* h : short. Size is 2, corresponding Clojure type is Integer
-* H : unsigned short. Size is 2, corresponding Clojure type is Integer
-* i : integer. Size is 4, corresponding Clojure type is Long
-* I : unsigned integer. Size is 4, corresponding Clojure type is Long.
-* l : long. Size is 8, corresponding Clojure type is BigInt
-* L : unsigned long. Size is 8, corresponding Clojure type is BigInt
-* f : float. Size is 4. Clojure type is Float.
-* d : double. Size is 8. Clojure type is Double.
+After Order type is one or many Data Type. Available  Data types are:
+
+| Character | Data type        | Size | Clojure Type |
+|:---------:| ---------------- |:----:| ------------ | 
+| c         | char             | 1    | Character    |
+| b         | signed char      | 1    | Intger       |
+| B         | unsigned char    | 1    | Integer      |
+| ?         | boolean          | 1    | Boolean      |
+| h         | short            | 2    | Integer      |
+| H         | unsigned short   | 2    | Integer      |
+| i         | integer          | 4    | Long         |
+| I         | unsigned integer | 4    | Long         |
+| l         | long             | 8    | BigInt       |
+| L         | unsigned long    | 8    | BigInt       |
+| f         | float            | 4    | Float        |
+| d         | double           | 8    | Double       |
 
 ## Count of Data type
 
